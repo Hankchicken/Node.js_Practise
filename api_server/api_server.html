@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <h1>省用者列表</h1>
+    <ul id="userList"></ul>
+
+    <h2>新增使用者</h2>
+    <input type="text" id="name" placeholder="輸入名字">
+    <input type="text" id="email" placeholder="輸入信箱">
+    <button onclick="createUser()">新增</button>
+
+    <script>
+        const apiBase = 'http://localhost:3000/users';
+
+        async function fetchUsers() {
+            const res = await fetch(apiBase);
+            const users = await res.json();
+            const list = document.getElementById('userList');
+            list.innerHTML = '';
+            users.forEach(user => {
+                const li = document.createElement('li');
+                li.textContent = `${user.id}. ${user.name} (${user.email})`;
+                list.appendChild(li);
+            });
+        }
+
+        async function createUser() {
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const res = await fetch(apiBase, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email })
+            });
+            const user = await res.json();
+            alert(`新增使用者成功：${user.name}`);
+            fetchUsers(); // 重新抓列表
+        }
+
+        // 初始化頁面
+        fetchUsers();
+    </script>
+</body>
+
+</html>
