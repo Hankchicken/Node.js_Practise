@@ -1,97 +1,131 @@
-//http 模組
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
-// 假資料記憶體資料庫（用陣列儲存用戶資料）
+const DATA_FILE = path.join(__dirname, 'users.json');
+
+// 啟動時讀取資料，沒有就建立空陣列
 let users = [];
+try {
+    const data = fs.readFileSync(DATA_FILE, 'utf-8');
+    users = JSON.parse(data);
+} catch {
+    users = [];
+    fs.writeFileSync(DATA_FILE, '[]', 'utf-8');
+}
+
+// 寫入檔案的函式
+function saveUsers(users) {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(users, null, 2), 'utf-8');
+}
 
 const server = http.createServer((req, res) => {
-    res.setHeader('content-type', 'application/json');
+    // 設定 CORS
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+    // 預檢請求
+    if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        res.end();
+        return;
+    }
+
+    res.setHeader('Content-Type', 'application/json');
     const url = new URL(req.url, `http://${req.headers.host}`);
     const method = req.method;
     const pathname = url.pathname;
 
-    // GET /users - 獲取所有用戶
+    // GET /users
     if (method === 'GET' && pathname === '/users') {
         res.writeHead(200);
-        res.end(JSON.stringify(users, null, 2));
+        res.end(JSON.stringify(users));
         return;
     }
 
-    // GET /users/:id - 獲取單個用戶
+    // GET /users/:id
     if (method === 'GET' && pathname.startsWith('/users/')) {
         const id = parseInt(pathname.split('/')[2]);
         const user = users.find(u => u.id === id);
         if (user) {
             res.writeHead(200);
-            res.end(JSON.stringify(user, null, 2));
+            res.end(JSON.stringify(user));
         } else {
             res.writeHead(404);
-            res.end(JSON.stringify({ message: 'User not found' }, null, 2));
+            res.end(JSON.stringify({ message: 'User not found' }));
         }
         return;
     }
 
-    // POST /users - 創建新用戶
+    // POST /users
     if (method === 'POST' && pathname === '/users') {
         let body = '';
-        req.on('data', chunk => {
-            body += chunk.toString();
-        });
+        req.on('data', chunk => (body += chunk.toString()));
         req.on('end', () => {
-            const newUser = JSON.parse(body);
-            newUser.id = users.length + 1; // 簡單生成 ID
-            users.push(newUser);
-            res.writeHead(201);
-            res.end(JSON.stringify(newUser, null, 2));
-        });
-        return;
-    }
-
-    // PUT /users/:id - 更新用戶
-    if (method === 'PUT' && pathname.startsWith('/users/')) {
-        const id = parseInt(pathname.split('/')[2]);
-        let body = '';
-        req.on('data', chunk => {
-            body += chunk.toString();
-        });
-        req.on('end', () => {
-            const updatedData = JSON.parse(body);
-            const userIndex = users.findIndex(u => u.id === id);
-            if (userIndex !== -1) {
-                users[userIndex] = { id, ...updatedData };
-                res.writeHead(200);
-                res.end(JSON.stringify(users[userIndex], null, 2));
-            } else {
-                res.writeHead(404);
-                res.end(JSON.stringify({ message: 'User not found' }, null, 2));
+            try {
+                const newUser = JSON.parse(body);
+                newUser.id = users.length > 0 ? users[users.length - 1].id + 1 : 1;
+                users.push(newUser);
+                saveUsers(users);
+                res.writeHead(201);
+                res.end(JSON.stringify(newUser));
+            } catch {
+                res.writeHead(400);
+                res.end(JSON.stringify({ message: 'Invalid JSON' }));
             }
         });
         return;
     }
-    
-    // DELETE /users/:id - 刪除用戶
+
+    // PUT /users/:id
+    if (method === 'PUT' && pathname.startsWith('/users/')) {
+        const id = parseInt(pathname.split('/')[2]);
+        let body = '';
+        req.on('data', chunk => (body += chunk.toString()));
+        req.on('end', () => {
+            try {
+                const updatedData = JSON.parse(body);
+                const userIndex = users.findIndex(u => u.id === id);
+                if (userIndex !== -1) {
+                    users[userIndex] = { id, ...updatedData };
+                    saveUsers(users);
+                    res.writeHead(200);
+                    res.end(JSON.stringify(users[userIndex]));
+                } else {
+                    res.writeHead(404);
+                    res.end(JSON.stringify({ message: 'User not found' }));
+                }
+            } catch {
+                res.writeHead(400);
+                res.end(JSON.stringify({ message: 'Invalid JSON' }));
+            }
+        });
+        return;
+    }
+
+    // DELETE /users/:id
     if (method === 'DELETE' && pathname.startsWith('/users/')) {
         const id = parseInt(pathname.split('/')[2]);
         const userIndex = users.findIndex(u => u.id === id);
         if (userIndex !== -1) {
             const deletedUser = users.splice(userIndex, 1);
+            saveUsers(users);
             res.writeHead(200);
-            res.end(JSON.stringify(deletedUser[0], null, 2));
+            res.end(JSON.stringify(deletedUser[0]));
         } else {
             res.writeHead(404);
-            res.end(JSON.stringify({ message: 'Route not found' }, null, 2));
+            res.end(JSON.stringify({ message: 'User not found' }));
         }
         return;
     }
 
-    // 處理無效的路由
+    // 404 Not Found
     res.writeHead(404);
     res.end(JSON.stringify({ message: 'Route not found' }));
 });
 
-// 監聽端口
 const PORT = 3000;
 server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running at http://localhost:${PORT}`);
 });
