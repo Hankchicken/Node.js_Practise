@@ -1,6 +1,3 @@
-function add(a, b){
-    return a+b;
-}
-
-console.log(add(3,5));
-console.log(add(10,20));
+const person = { name: 'Hank', age: 18 };
+const { name, age } = person;
+console.log(`姓名: ${name}, 年齡: ${age} `);
